@@ -28,8 +28,9 @@ class NrSocketProxy : public QObject
     QUdpSocket *m_pUdpClientSideSock = nullptr; //udp socket to send back data to client (binds on listen address)
     QTcpSocket *m_pTcpServerSideSock = nullptr; //tcp socket used to connect to proxied server
     QTcpSocket *m_pTcpClientSideSock = nullptr; //tcp socket retrieved from sslserver to send back data to client
-    bool m_isLocalSendingPaused = false;
-    bool m_isRemoteSendingPaused = false;
+    QSslSocket *m_pSslClientSideSock = nullptr; //ssl socket retrieved from sslserver to send back data to client
+    bool m_isSendingToClientPaused = false;
+    bool m_isSendingToServerPaused = false;
     QString m_lastUdpClientAddress;
     quint16 m_lastUdpClientPort = 0;
     SslServer *m_pSslServer = nullptr; //Tcp or Ssl server to accept connections from clients
@@ -39,8 +40,8 @@ public:
     NrSocketProxy(const NrSocketProxy &rhs) = delete;
     NrSocketProxy& operator=(const NrSocketProxy &rhs) = delete;
     virtual ~NrSocketProxy();
-    void pauseRemoteSending(bool);
-    void pauseLocalSending(bool);
+    void pauseSendingToServer(bool);
+    void pauseSendingToClient(bool);
     QString listeningAddress() const;
     quint16 listeningPort() const;
     QString proxiedAddress() const;
@@ -54,12 +55,12 @@ signals:
     void sigDisconnectedFromServer();
     void sigLogEvent(QString);
 private slots:
-    void onRemoteConnected();
-    void onRemoteDisconnected();
-    void onLocalConnected();
-    void onLocalDisconnected();
-    void onLocalReadyRead();
-    void onRemoteReadyRead();
+    void onConnectedToServer();
+    void onDisconnectedFromServer();
+    void onClientConnected();
+    void onClientDisconnected();
+    void onClientDataAvailable();
+    void onServerDataAvailable();
 
 };
 

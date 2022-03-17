@@ -156,14 +156,14 @@ void MainWindow::onSendToRemote()
 void MainWindow::onPauseToLocalChecked(bool paused)
 {
     qDebug() << Q_FUNC_INFO << paused;
-    m_pProxy->pauseLocalSending(paused);
+    m_pProxy->pauseSendingToClient(paused);
 }
 
 
 void MainWindow::onPauseToRemoteChecked(bool paused)
 {
     qDebug() << Q_FUNC_INFO << paused;
-    m_pProxy->pauseRemoteSending(paused);
+    m_pProxy->pauseSendingToServer(paused);
 }
 
 
