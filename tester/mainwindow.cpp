@@ -90,6 +90,9 @@ void MainWindow::onConfigButtonPressed()
     //GUI Sanity state
     ui->btnSendToLocal->setEnabled(true);
     ui->btnSendToRemote->setEnabled(true);
+    ui->gboxProtocol->setEnabled(false);
+    ui->gboxSendTo->setEnabled(false);
+    ui->gboxListen->setEnabled(false);
 
     //connect to proxy
     connect(m_pTcpClientSocket, &QTcpSocket::connected, this, &MainWindow::onClientConnectedToProxy);

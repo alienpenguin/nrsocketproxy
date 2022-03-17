@@ -54,6 +54,7 @@ signals:
     void sigConnectedToServer();
     void sigDisconnectedFromServer();
     void sigLogEvent(QString);
+
 private slots:
     void onConnectedToServer();
     void onDisconnectedFromServer();

@@ -58,7 +58,7 @@ void NrSocketProxy::onClientDataAvailable()
             m_lastUdpClientPort = msg.senderPort();
             //qDebug() << "received datagram" << msg.data() << " from " << msg.senderAddress() << ":" << msg.senderPort() << " to" << msg.destinationAddress() << ":" << msg.destinationPort();
             if (!m_isSendingToServerPaused) {
-                msg.setData(msg.data()+"#");
+                msg.setData(msg.data());
                 //qDebug() << "About to send datagram" << msg.data() << " from " << msg.senderAddress() << ":" << msg.senderPort() << " to" << m_Config.remoteAddress << ":" << m_Config.remotePort;
                 qint64 wb = m_pUdpServerSideSock->writeDatagram(msg.data(), QHostAddress(m_Config.remoteAddress), m_Config.remotePort);
                 //qDebug() << "written bytes: " << wb << (wb>0?"":m_pUdpServerSideSock->errorString());
@@ -89,7 +89,7 @@ void NrSocketProxy::onServerDataAvailable()
             QNetworkDatagram msg = m_pUdpServerSideSock->receiveDatagram();
             //qDebug() << "received datagram" << msg.data() << " from " << msg.senderAddress() << ":" << msg.senderPort() << " to" << msg.destinationAddress() << ":" << msg.destinationPort();
             if (!m_isSendingToClientPaused) {
-                msg.setData(msg.data()+"$");
+                msg.setData(msg.data());
                 //qDebug() << "About to send datagram" << msg.data() << " from " << m_Config.localAddress << ":" << m_Config.localPort << " to" << m_lastUdpClientAddress << ":" << m_lastUdpClientPort;
                 qint64 wb = m_pUdpClientSideSock->writeDatagram(msg.data(), QHostAddress(m_lastUdpClientAddress), m_lastUdpClientPort);
                 //qDebug() << "written bytes: " << wb << (wb>0?"":m_pUdpClientSideSock->errorString());
@@ -116,8 +116,6 @@ void NrSocketProxy::onConnectedToServer()
 {
     qDebug() << Q_FUNC_INFO;
     emit sigConnectedToServer();
-    qint64 wb = m_pTcpServerSideSock->write("Ciao");
-    //qDebug() << "Written bytes: " << wb << (wb>0?"":m_pTcpServerSideSock->errorString());
 }
 
 
