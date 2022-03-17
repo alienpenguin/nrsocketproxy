@@ -28,6 +28,7 @@ class NrSocketProxy : public QObject
     QUdpSocket *m_pUdpClientSideSock = nullptr; //udp socket to send back data to client (binds on listen address)
     QTcpSocket *m_pTcpServerSideSock = nullptr; //tcp socket used to connect to proxied server
     QTcpSocket *m_pTcpClientSideSock = nullptr; //tcp socket retrieved from sslserver to send back data to client
+    QSslSocket *m_pSslServerSideSock = nullptr; //ssl socket used to connect to proxied server
     QSslSocket *m_pSslClientSideSock = nullptr; //ssl socket retrieved from sslserver to send back data to client
     bool m_isSendingToClientPaused = false;
     bool m_isSendingToServerPaused = false;
@@ -62,6 +63,7 @@ private slots:
     void onClientDisconnected();
     void onClientDataAvailable();
     void onServerDataAvailable();
+    void onSslErrors(QList<QSslError> errorlist);
 
 };
 

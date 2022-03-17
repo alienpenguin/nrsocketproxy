@@ -12,6 +12,7 @@ NrSocketProxy::NrSocketProxy(const NrSocketProxyConfig &cfg, QObject *parent)
     m_pUdpServerSideSock = new QUdpSocket(this);
     m_pUdpClientSideSock = new QUdpSocket(this);
     m_pTcpServerSideSock = new QTcpSocket(this);
+    m_pSslServerSideSock = new QSslSocket(this);
 
     NrServerConfig sslcfg;
     sslcfg.portBindingPolicy = NrServerConfig::E_BindToSpecificPort;
@@ -29,7 +30,15 @@ NrSocketProxy::NrSocketProxy(const NrSocketProxyConfig &cfg, QObject *parent)
         m_pTcpServerSideSock->connectToHost(QHostAddress(cfg.remoteAddress), cfg.remotePort);
         sslcfg.disableEncryption = true;
     } else {
-
+        connect(m_pSslServerSideSock, &QTcpSocket::connected, this, &NrSocketProxy::onConnectedToServer);
+        connect(m_pSslServerSideSock, &QTcpSocket::disconnected, this, &NrSocketProxy::onDisconnectedFromServer);
+        connect(m_pSslServerSideSock, &QTcpSocket::readyRead, this, &NrSocketProxy::onServerDataAvailable);
+        bool b = (bool) connect(m_pSslServerSideSock, SIGNAL(sslErrors(QList<QSslError>)), this, SLOT(onSslErrors(QList<QSslError>)));
+        Q_ASSERT(b);
+        m_pSslServerSideSock->connectToHostEncrypted(cfg.remoteAddress, cfg.remotePort);
+        sslcfg.certfile = "test_cacert.pem";
+        sslcfg.keyfile = "test_provkey.pem";
+        sslcfg.ignoreSslErrors = true;
     }
 
     m_pSslServer = new SslServer(sslcfg);
@@ -47,6 +56,12 @@ NrSocketProxy::~NrSocketProxy()
 
 }
 
+
+void NrSocketProxy::onSslErrors(QList<QSslError> errorlist)
+{
+    qDebug() << Q_FUNC_INFO << errorlist;
+    m_pSslServerSideSock->ignoreSslErrors(errorlist);
+}
 
 void NrSocketProxy::onClientDataAvailable()
 {

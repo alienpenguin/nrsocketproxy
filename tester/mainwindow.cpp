@@ -5,7 +5,7 @@
 #include "sslserver.h"
 
 #include <QNetworkDatagram>
-#include <QTcpSocket>
+#include <QSslSocket>
 #include <QDateTime>
 
 MainWindow::MainWindow(QWidget *parent)
@@ -23,10 +23,18 @@ MainWindow::MainWindow(QWidget *parent)
     m_pUdpClientSocket = new QUdpSocket(this);
     m_pUdpServerSocket = new QUdpSocket(this);
     m_pTcpClientSocket = new QTcpSocket(this);
+    m_pSslClientSocket = new QSslSocket(this);
 
     connect (m_pUdpClientSocket, &QUdpSocket::readyRead, this, &MainWindow::onClientReadyRead);
     connect (m_pUdpServerSocket, &QUdpSocket::readyRead, this, &MainWindow::onServerReadyRead);
-    connect (m_pTcpClientSocket, &QTcpSocket::readyRead, this, &MainWindow::onClientReadyRead);
+
+    connect(m_pTcpClientSocket, &QTcpSocket::connected, this, &MainWindow::onClientConnectedToProxy);
+    connect(m_pTcpClientSocket, &QTcpSocket::disconnected, this, &MainWindow::onClientDisconnectedFromProxy);
+    connect(m_pTcpClientSocket, &QTcpSocket::readyRead, this, &MainWindow::onClientReadyRead);
+
+    connect(m_pSslClientSocket, &QTcpSocket::connected, this, &MainWindow::onClientConnectedToProxy);
+    connect(m_pSslClientSocket, &QTcpSocket::disconnected, this, &MainWindow::onClientDisconnectedFromProxy);
+    connect(m_pSslClientSocket, &QTcpSocket::readyRead, this, &MainWindow::onClientReadyRead);
 }
 
 MainWindow::~MainWindow()
@@ -58,21 +66,28 @@ void MainWindow::onConfigButtonPressed()
 {
     qDebug() << Q_FUNC_INFO;
 
+    //Config for tcp / ssl server
+    NrServerConfig sslcfg;
+
     NrSocketProxyConfig cfg;
     cfg.localAddress = ui->txtListenAddress->text();
     cfg.remoteAddress = ui->txtSendAddress->text();
     cfg.localPort = ui->txtListenPort->text().toUInt();
     cfg.remotePort = ui->txtSendPort->text().toUInt();
-    if (ui->rdoUdp->isChecked())
+    if (ui->rdoUdp->isChecked()) {
         cfg.protocolType = NrSocketProxyConfig::UDP;
-    else if (ui->rdoTcp->isChecked())
+    } else if (ui->rdoTcp->isChecked()) {
         cfg.protocolType = NrSocketProxyConfig::TCP;
-    else
+        qDebug() << "disabling local server encryption";
+        sslcfg.disableEncryption = true;
+    } else {
         cfg.protocolType = NrSocketProxyConfig::SSL;
+        sslcfg.certfile = "test_cacert.pem";
+        sslcfg.keyfile = "test_privkey.pem";
+        sslcfg.ignoreSslErrors = true;
+    }
 
     //Setup TCP / SSL Server
-    NrServerConfig sslcfg;
-    sslcfg.disableEncryption = true;
     sslcfg.portBindingPolicy = NrServerConfig::E_BindToSpecificPort;
     sslcfg.serverPort = cfg.remotePort;
     m_pSslServer = new SslServer(sslcfg);
@@ -94,11 +109,15 @@ void MainWindow::onConfigButtonPressed()
     ui->gboxSendTo->setEnabled(false);
     ui->gboxListen->setEnabled(false);
 
-    //connect to proxy
-    connect(m_pTcpClientSocket, &QTcpSocket::connected, this, &MainWindow::onClientConnectedToProxy);
-    connect(m_pTcpClientSocket, &QTcpSocket::disconnected, this, &MainWindow::onClientDisconnectedFromProxy);
-    connect(m_pTcpClientSocket, &QTcpSocket::readyRead, this, &MainWindow::onClientReadyRead);
-    m_pTcpClientSocket->connectToHost(QHostAddress(cfg.localAddress), cfg.localPort);
+    if (cfg.protocolType == NrSocketProxyConfig::TCP) {
+        //connect to proxy on tcp
+        m_pTcpClientSocket->connectToHost(cfg.localAddress, cfg.localPort);
+    }
+
+    if (cfg.protocolType == NrSocketProxyConfig::SSL) {
+        //connect to proxy on ssl
+        //m_pSslClientSocket->connectToHostEncrypted(cfg.localAddress, cfg.localPort);
+    }
 }
 
 
