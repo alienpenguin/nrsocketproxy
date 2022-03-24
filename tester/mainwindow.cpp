@@ -32,17 +32,20 @@ MainWindow::MainWindow(QWidget *parent)
     connect(m_pTcpClientSocket, &QTcpSocket::disconnected, this, &MainWindow::onClientDisconnectedFromProxy);
     connect(m_pTcpClientSocket, &QTcpSocket::readyRead, this, &MainWindow::onClientReadyRead);
 
-    connect(m_pSslClientSocket, &QTcpSocket::connected, this, &MainWindow::onClientConnectedToProxy);
-    connect(m_pSslClientSocket, &QTcpSocket::disconnected, this, &MainWindow::onClientDisconnectedFromProxy);
-    connect(m_pSslClientSocket, &QTcpSocket::readyRead, this, &MainWindow::onClientReadyRead);
+    connect(m_pSslClientSocket, &QSslSocket::connected, this, &MainWindow::onClientConnectedToProxy);
+    connect(m_pSslClientSocket, &QSslSocket::disconnected, this, &MainWindow::onClientDisconnectedFromProxy);
+    connect(m_pSslClientSocket, &QSslSocket::readyRead, this, &MainWindow::onClientReadyRead);
 }
 
 MainWindow::~MainWindow()
 {
     m_pTcpClientSocket->disconnectFromHost();
     m_pTcpServerSocket->disconnectFromHost();
+    m_pSslClientSocket->disconnectFromHost();
+    //m_pSslServerSocket->disconnectFromHost();
     m_pProxy->deleteLater();
     delete ui;
+    ui = nullptr;
 }
 
 
@@ -116,7 +119,8 @@ void MainWindow::onConfigButtonPressed()
 
     if (cfg.protocolType == NrSocketProxyConfig::SSL) {
         //connect to proxy on ssl
-        //m_pSslClientSocket->connectToHostEncrypted(cfg.localAddress, cfg.localPort);
+        m_pSslClientSocket->connectToHostEncrypted(cfg.localAddress, cfg.localPort);
+        m_pSslClientSocket->ignoreSslErrors();
     }
 }
 
@@ -126,7 +130,7 @@ void MainWindow::onProxyConnectedToServerSide()
     qDebug() << Q_FUNC_INFO;
     logMessage("Proxy connected to our server on TCP / SSL");
     m_pTcpServerSocket = m_pSslServer->nextPendingConnection();
-    connect(m_pTcpServerSocket, &QTcpSocket::readyRead, this, &MainWindow::onServerReadyRead);
+    connect(m_pTcpServerSocket, &QSslSocket::readyRead, this, &MainWindow::onServerReadyRead);
 }
 
 
@@ -141,6 +145,10 @@ void MainWindow::onClientDisconnectedFromProxy()
 {
     qDebug() << Q_FUNC_INFO;
     logMessage("Client disconnected from proxy on TCP / SSL");
+    QTcpSocket *sock = dynamic_cast<QTcpSocket*>(sender());
+    if (sock) {
+        qDebug() << sock->errorString();
+    }
 }
 
 void MainWindow::onSendToLocal()
@@ -151,6 +159,9 @@ void MainWindow::onSendToLocal()
     if (ui->rdoUdp->isChecked()) {
         qDebug() << "sending to client over UDP";
         m_pUdpServerSocket->writeDatagram(msg.toUtf8(), QHostAddress(m_pProxy->proxiedAddress()), m_pProxy->udpPortToProxy());
+    } else if (ui->rdoSsl->isChecked()) {
+        qDebug() << "sending to client over SSL";
+        m_pTcpServerSocket->write(msg.toUtf8());
     } else {
         qDebug() << "sending to client over tcp";
         m_pTcpServerSocket->write(msg.toUtf8());
@@ -167,11 +178,14 @@ void MainWindow::onSendToRemote()
     if (ui->rdoUdp->isChecked()) {
         qDebug() << "sending to server over UDP";
         m_pUdpClientSocket->writeDatagram(msg.toUtf8(), QHostAddress(m_pProxy->listeningAddress()), m_pProxy->listeningPort());
+    } else if (ui->rdoSsl->isChecked()) {
+        qDebug() << "sending to server over SSL";
+        m_pSslClientSocket->write(msg.toUtf8());
     } else {
         qDebug() << "sending to server over tcp";
         m_pTcpClientSocket->write(msg.toUtf8());
     }
-    ui->txtClient->append(timestampMessage(" <- " + msg));
+    ui->txtClient->append(timestampMessage(" -> " + msg));
 }
 
 
@@ -202,10 +216,11 @@ void MainWindow::onClientReadyRead()
     } else if (ui->rdoTcp->isChecked()) {
         qDebug() << "Using TCP";
         QString msg = m_pTcpClientSocket->readAll().trimmed();
-        if (!msg.isEmpty())
-            ui->txtClient->append(timestampMessage(" <- " + msg));
+        ui->txtClient->append(timestampMessage(" <- " + msg));
     } else {
         qDebug() << "Using SSL";
+        QString msg = m_pSslClientSocket->readAll().trimmed();
+        ui->txtClient->append(timestampMessage(" <- " + msg));
     }
 }
 
@@ -225,5 +240,6 @@ void MainWindow::onServerReadyRead()
         ui->txtServer->append(timestampMessage(" -> " + m_pTcpServerSocket->readAll()));
     } else {
         qDebug() << "Using SSL";
+        ui->txtServer->append(timestampMessage(" -> " + m_pTcpServerSocket->readAll()));
     }
 }

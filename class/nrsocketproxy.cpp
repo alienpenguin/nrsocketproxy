@@ -35,9 +35,11 @@ NrSocketProxy::NrSocketProxy(const NrSocketProxyConfig &cfg, QObject *parent)
         connect(m_pSslServerSideSock, &QTcpSocket::readyRead, this, &NrSocketProxy::onServerDataAvailable);
         bool b = (bool) connect(m_pSslServerSideSock, SIGNAL(sslErrors(QList<QSslError>)), this, SLOT(onSslErrors(QList<QSslError>)));
         Q_ASSERT(b);
+        m_pSslServerSideSock->ignoreSslErrors();
         m_pSslServerSideSock->connectToHostEncrypted(cfg.remoteAddress, cfg.remotePort);
+        m_pSslServerSideSock->ignoreSslErrors();
         sslcfg.certfile = "test_cacert.pem";
-        sslcfg.keyfile = "test_provkey.pem";
+        sslcfg.keyfile = "test_privkey.pem";
         sslcfg.ignoreSslErrors = true;
     }
 
@@ -83,13 +85,22 @@ void NrSocketProxy::onClientDataAvailable()
                 emit sigLogEvent(dmsg);
             }
         }
-    } else {
+    } else if (m_Config.protocolType == NrSocketProxyConfig::TCP) {
         QByteArray data = m_pTcpClientSideSock->readAll();
         if (!m_isSendingToServerPaused) {
             qint64 wb = m_pTcpServerSideSock->write(data);
             //qDebug() << "written bytes: " << wb << (wb>0?"":m_pTcpServerSideSock->errorString());
         } else {
             QString msg = "<span style=\"color: red\">dPROXY - Sending (TCP) to server is paused, dropping message: </span>" + data;
+            emit sigLogEvent(msg);
+        }
+    } else {
+        QByteArray data = m_pTcpClientSideSock->readAll();
+        if (!m_isSendingToServerPaused) {
+            qint64 wb = m_pSslServerSideSock->write(data);
+            //qDebug() << "written bytes: " << wb << (wb>0?"":m_pTcpServerSideSock->errorString());
+        } else {
+            QString msg = "<span style=\"color: red\">dPROXY - Sending (SSL) to server is paused, dropping message: </span>" + data;
             emit sigLogEvent(msg);
         }
     }
@@ -114,13 +125,22 @@ void NrSocketProxy::onServerDataAvailable()
                 //qDebug() << dmsg;
             }
         }
-    } else {
+    } else if (m_Config.protocolType == NrSocketProxyConfig::TCP) {
         QByteArray data = m_pTcpServerSideSock->readAll();
         if (!m_isSendingToClientPaused) {
             qint64 wb = m_pTcpClientSideSock->write(data);
             //qDebug() << "written bytes: " << wb << (wb>0?"":m_pTcpClientSideSock->errorString());
         } else {
             QString msg = "<span style=\"color: red\">dPROXY - Sending (TCP) to client is paused, dropping message: </span>" + data;
+            emit sigLogEvent(msg);
+        }
+    } else {
+        QByteArray data = m_pSslServerSideSock->readAll();
+        if (!m_isSendingToClientPaused) {
+            qint64 wb = m_pTcpClientSideSock->write(data);
+            //qDebug() << "written bytes: " << wb << (wb>0?"":m_pTcpClientSideSock->errorString());
+        } else {
+            QString msg = "<span style=\"color: red\">dPROXY - Sending (SSL) to client is paused, dropping message: </span>" + data;
             emit sigLogEvent(msg);
         }
     }
@@ -148,6 +168,7 @@ void NrSocketProxy::onClientConnected()
     m_pTcpClientSideSock = m_pSslServer->nextPendingConnection();
     connect(m_pTcpClientSideSock, &QTcpSocket::readyRead, this, &NrSocketProxy::onClientDataAvailable);
     connect(m_pTcpClientSideSock, &QTcpSocket::disconnected, this, &NrSocketProxy::onClientDisconnected);
+    //m_pTcpClientSideSock->write("test from proxy");
 }
 
 void NrSocketProxy::onClientDisconnected()
