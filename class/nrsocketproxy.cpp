@@ -15,6 +15,7 @@ NrSocketProxy::NrSocketProxy(const NrSocketProxyConfig &cfg, QObject *parent)
     m_pSslServerSideSock = new QSslSocket(this);
 
     NrServerConfig sslcfg;
+    sslcfg.allowedClientsHardLimit = 1;
     sslcfg.portBindingPolicy = NrServerConfig::E_BindToSpecificPort;
     sslcfg.serverPort = cfg.localPort;
 
@@ -97,6 +98,7 @@ void NrSocketProxy::onClientDataAvailable()
     } else {
         QByteArray data = m_pTcpClientSideSock->readAll();
         if (!m_isSendingToServerPaused) {
+            //qDebug() << "Sending data to server from client: " << data;
             qint64 wb = m_pSslServerSideSock->write(data);
             //qDebug() << "written bytes: " << wb << (wb>0?"":m_pTcpServerSideSock->errorString());
         } else {
@@ -136,6 +138,7 @@ void NrSocketProxy::onServerDataAvailable()
         }
     } else {
         QByteArray data = m_pSslServerSideSock->readAll();
+        //qDebug() << "Sending data to client from server: " << data;
         if (!m_isSendingToClientPaused) {
             qint64 wb = m_pTcpClientSideSock->write(data);
             //qDebug() << "written bytes: " << wb << (wb>0?"":m_pTcpClientSideSock->errorString());
@@ -168,14 +171,65 @@ void NrSocketProxy::onClientConnected()
     m_pTcpClientSideSock = m_pSslServer->nextPendingConnection();
     connect(m_pTcpClientSideSock, &QTcpSocket::readyRead, this, &NrSocketProxy::onClientDataAvailable);
     connect(m_pTcpClientSideSock, &QTcpSocket::disconnected, this, &NrSocketProxy::onClientDisconnected);
-    //m_pTcpClientSideSock->write("test from proxy");
+    //qDebug() << "client connected from " << m_pTcpClientSideSock->peerAddress().toString() << ":" << m_pTcpClientSideSock->peerPort();
 }
+
 
 void NrSocketProxy::onClientDisconnected()
 {
     qDebug() << Q_FUNC_INFO;
     emit sigClientDisconnected();
 }
+
+
+void NrSocketProxy::disconnectClient()
+{
+    switch(m_Config.protocolType) {
+    case NrSocketProxyConfig::UDP:
+        m_pUdpClientSideSock->disconnectFromHost();
+        break;
+    case NrSocketProxyConfig::TCP:
+        m_pTcpClientSideSock->disconnectFromHost();
+        break;
+    case NrSocketProxyConfig::SSL:
+        m_pTcpClientSideSock->close();
+        break;
+    }
+}
+
+
+void NrSocketProxy::disconnectServer()
+{
+    switch(m_Config.protocolType) {
+    case NrSocketProxyConfig::UDP:
+        m_pUdpServerSideSock->disconnectFromHost();
+        break;
+    case NrSocketProxyConfig::TCP:
+        m_pTcpServerSideSock->disconnectFromHost();
+        break;
+    case NrSocketProxyConfig::SSL:
+        m_pSslServerSideSock->disconnectFromHost();
+        break;
+    }
+}
+
+
+void NrSocketProxy::connectServer()
+{
+    switch(m_Config.protocolType) {
+    case NrSocketProxyConfig::UDP:
+        //do nothing
+        break;
+    case NrSocketProxyConfig::TCP:
+        m_pTcpServerSideSock->connectToHost(m_Config.remoteAddress, m_Config.remotePort);
+        break;
+    case NrSocketProxyConfig::SSL:
+        m_pSslServerSideSock->connectToHostEncrypted(m_Config.remoteAddress, m_Config.remotePort);
+        break;
+    }
+
+}
+
 
 void NrSocketProxy::pauseSendingToClient(bool b)
 {

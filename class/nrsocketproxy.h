@@ -48,6 +48,9 @@ public:
     QString proxiedAddress() const;
     quint16 proxiedPort() const;
     quint16 udpPortToProxy() const;
+    void disconnectClient();
+    void disconnectServer();
+    void connectServer();
 
 signals:
     void sigClientConnected();
